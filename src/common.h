@@ -280,6 +280,9 @@ GLOBAL int acls_option;
 /* If positive, save the user and root xattrs.  */
 GLOBAL int xattrs_option;
 
+/* If positive, use reflinks when available.  */
+extern int reflink_option;
+
 /* If non zero, set file offset to seek to */
 extern int offset_option;
 
@@ -291,6 +294,7 @@ GLOBAL bool show_omitted_dirs_option;
 
 GLOBAL bool sparse_option;
 GLOBAL int offset_option;
+GLOBAL int reflink_option;
 GLOBAL unsigned tar_sparse_major;
 GLOBAL unsigned tar_sparse_minor;
 
@@ -431,6 +435,12 @@ GLOBAL bool show_transformed_names_option;
    timestamps from archives with an unusual member order. It is automatically
    set for incremental archives. */
 GLOBAL bool delay_directory_restore_option;
+
+COMMON_INLINE unsigned long round_up (unsigned long n, unsigned long m)
+{
+  return ((n - 1) | (m - 1)) + 1;
+}
+
 
 /* Declarations for each module.  */
 
@@ -455,6 +465,8 @@ extern char *continued_file_name;
 extern uintmax_t continued_file_size;
 extern uintmax_t continued_file_offset;
 extern off_t records_written;
+extern union block *record_start;
+extern union block *current_block;
 
 char *drop_volume_label_suffix (const char *label);
 
@@ -694,6 +706,8 @@ char const *code_timespec (struct timespec ts,
 			   char sbuf[TIMESPEC_STRSIZE_BOUND]);
 struct timespec decode_timespec (char const *, char **, bool);
 
+enum { REFLINK_BLOCK_SIZE = 4096 };
+
 /* Return true if T does not represent an out-of-range or invalid value.  */
 COMMON_INLINE bool
 valid_timespec (struct timespec t)
@@ -875,6 +889,11 @@ void update_archive (void);
 #include "xattrs.h"
 
 /* Module xheader.c.  */
+
+struct comment {
+  char *comment;
+  size_t length;
+};
 
 void xheader_decode (struct tar_stat_info *stat);
 void xheader_decode_global (struct xheader *xhdr);

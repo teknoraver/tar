@@ -90,6 +90,7 @@ int xattrs_option;
 size_t strip_name_components;
 bool show_omitted_dirs_option;
 bool sparse_option;
+int reflink_option;
 int offset_option;
 intmax_t tar_sparse_major;
 intmax_t tar_sparse_minor;
@@ -410,6 +411,7 @@ enum
   RECORD_SIZE_OPTION,
   RECURSIVE_UNLINK_OPTION,
   OFFSET_OPTION,
+  REFLINK_OPTION,
   REMOVE_FILES_OPTION,
   RESTRICT_OPTION,
   RMT_COMMAND_OPTION,
@@ -593,6 +595,8 @@ static struct argp_option options[] = {
   {"check-device", CHECK_DEVICE_OPTION, NULL, 0,
    N_("check device numbers when creating incremental archives (default)"),
    GRID_MODIFIER },
+  {"reflink", REFLINK_OPTION, 0, 0,
+   N_("Use reflinks when available"), GRID_MODIFIER },
 
   {NULL, 0, NULL, 0,
    N_("Overwrite control:"), GRH_OVERWRITE },
@@ -1778,6 +1782,11 @@ parse_opt (int key, char *arg, struct argp_state *state)
 
     case 'S':
       sparse_option = true;
+      break;
+
+    case REFLINK_OPTION:
+      set_archive_format ("posix");
+      reflink_option = 1;
       break;
 
     case OFFSET_OPTION:

@@ -1116,6 +1116,19 @@ close_archive (void)
   if (verify_option)
     verify_volume ();
 
+  if (reflink_option && access_mode == ACCESS_WRITE)
+    {
+      off_t pos = rmtlseek (archive, 0, SEEK_END);
+      /* Pad the archive to the next reflink block boundary,
+       * otherwise reflink will fail extracting the last file. */
+      if (pos % REFLINK_BLOCK_SIZE != 0)
+        {
+          pos = round_up (pos, REFLINK_BLOCK_SIZE);
+          if (ftruncate (archive, pos) != 0)
+            close_error (_("Cannot pad archive to reflink block boundary"));
+        }
+    }
+
   if (rmtclose (archive) != 0)
     close_error (*archive_name_cursor);
 

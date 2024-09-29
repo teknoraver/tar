@@ -280,6 +280,9 @@ GLOBAL int acls_option;
 /* If positive, save the user and root xattrs.  */
 GLOBAL int xattrs_option;
 
+/* If positive, use reflinks when available.  */
+GLOBAL int reflink_option;
+
 /* When set, strip the given number of file name components from the file name
    before extracting */
 GLOBAL size_t strip_name_components;
@@ -427,6 +430,13 @@ GLOBAL bool show_transformed_names_option;
    timestamps from archives with an unusual member order. It is automatically
    set for incremental archives. */
 GLOBAL bool delay_directory_restore_option;
+
+/* Rounds up n to the next multiple of m. Only works if m is a power of two. */
+COMMON_INLINE unsigned long round_up (unsigned long n, unsigned long m)
+{
+  m--;
+  return (n + m) & ~m;
+}
 
 /* Declarations for each module.  */
 
@@ -451,6 +461,8 @@ extern char *continued_file_name;
 extern uintmax_t continued_file_size;
 extern uintmax_t continued_file_offset;
 extern off_t records_written;
+extern union block *record_start;
+extern union block *current_block;
 
 char *drop_volume_label_suffix (const char *label);
 
@@ -690,6 +702,8 @@ char const *code_timespec (struct timespec ts,
 			   char sbuf[TIMESPEC_STRSIZE_BOUND]);
 struct timespec decode_timespec (char const *, char **, bool);
 
+enum { REFLINK_BLOCK_SIZE = 4096 };
+
 /* Return true if T does not represent an out-of-range or invalid value.  */
 COMMON_INLINE bool
 valid_timespec (struct timespec t)
@@ -871,6 +885,11 @@ void update_archive (void);
 #include "xattrs.h"
 
 /* Module xheader.c.  */
+
+struct comment {
+  char *comment;
+  size_t length;
+};
 
 void xheader_decode (struct tar_stat_info *stat);
 void xheader_decode_global (struct xheader *xhdr);

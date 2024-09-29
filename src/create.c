@@ -944,6 +944,27 @@ start_header (struct tar_stat_info *st)
       if (xattrs_option)
 	for (idx_t i = 0; i < st->xattr_map.xm_size; i++)
 	  xheader_store (st->xattr_map.xm_map[i].xkey, st, &i);
+      if (reflink_option && S_ISREG (st->stat.st_mode) && st->stat.st_size)
+	{
+	  size_t pos = (unsigned long)records_written * record_size + (current_block->buffer - record_start->buffer);
+	  size_t rem = pos % REFLINK_BLOCK_SIZE;
+	  ssize_t n = REFLINK_BLOCK_SIZE - 1024 - rem - st->xhdr.size - 14;
+	  static char comment_buf[REFLINK_BLOCK_SIZE];
+
+	  if (n < 0)
+	    n += REFLINK_BLOCK_SIZE;
+
+	  if (comment_buf[0] == 0)
+	    memset (comment_buf, ' ', sizeof (comment_buf));
+
+	  struct comment comment =
+	    {
+	      .comment = comment_buf,
+	      .length = n,
+	    };
+
+	  xheader_store ("comment", st, &comment);
+	}
     }
 
   return header;

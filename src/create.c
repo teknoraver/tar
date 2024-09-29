@@ -965,6 +965,8 @@ start_header (struct tar_stat_info *st)
 	  for (i = 0; i < st->xattr_map.xm_size; i++)
 	    xheader_store (st->xattr_map.xm_map[i].xkey, st, &i);
         }
+      if (reflink_option > 0 && S_ISREG (st->stat.st_mode) && st->stat.st_size)
+        xheader_store ("REFLINK.alignment", st, NULL);
     }
 
   return header;

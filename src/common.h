@@ -280,6 +280,9 @@ GLOBAL int acls_option;
 /* If positive, save the user and root xattrs.  */
 GLOBAL int xattrs_option;
 
+/* If positive, use reflinks when available.  */
+GLOBAL int reflink_option;
+
 /* When set, strip the given number of file name components from the file name
    before extracting */
 GLOBAL size_t strip_name_components;
@@ -287,6 +290,7 @@ GLOBAL size_t strip_name_components;
 GLOBAL bool show_omitted_dirs_option;
 
 GLOBAL bool sparse_option;
+GLOBAL int reflink_option;
 GLOBAL unsigned tar_sparse_major;
 GLOBAL unsigned tar_sparse_minor;
 
@@ -427,6 +431,11 @@ GLOBAL bool show_transformed_names_option;
    timestamps from archives with an unusual member order. It is automatically
    set for incremental archives. */
 GLOBAL bool delay_directory_restore_option;
+
+COMMON_INLINE unsigned long round_up (unsigned long n, unsigned long m)
+{
+  return ((n - 1) | (m - 1)) + 1;
+}
 
 /* Declarations for each module.  */
 
@@ -451,6 +460,8 @@ extern char *continued_file_name;
 extern uintmax_t continued_file_size;
 extern uintmax_t continued_file_offset;
 extern off_t records_written;
+extern union block *record_start;
+extern union block *current_block;
 
 char *drop_volume_label_suffix (const char *label);
 
@@ -689,6 +700,8 @@ enum { TIMESPEC_STRSIZE_BOUND =
 char const *code_timespec (struct timespec ts,
 			   char sbuf[TIMESPEC_STRSIZE_BOUND]);
 struct timespec decode_timespec (char const *, char **, bool);
+
+enum { REFLINK_BLOCK_SIZE = 4096 };
 
 /* Return true if T does not represent an out-of-range or invalid value.  */
 COMMON_INLINE bool

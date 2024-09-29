@@ -277,6 +277,9 @@ extern int acls_option;
 /* If positive, save the user and root xattrs.  */
 extern int xattrs_option;
 
+/* If positive, use reflinks when available.  */
+extern int reflink_option;
+
 /* If non zero, set file offset to seek to */
 extern int offset_option;
 
@@ -399,6 +402,12 @@ extern bool show_transformed_names_option;
    timestamps from archives with an unusual member order. It is automatically
    set for incremental archives. */
 extern bool delay_directory_restore_option;
+
+COMMON_INLINE unsigned long round_up (unsigned long n, unsigned long m)
+{
+  return ((n - 1) | (m - 1)) + 1;
+}
+
 
 /* Declarations for each module.  */
 
@@ -704,6 +713,8 @@ enum { TIMESPEC_STRSIZE_BOUND =
 char const *code_timespec (struct timespec ts,
 			   char tsbuf[TIMESPEC_STRSIZE_BOUND]);
 struct timespec decode_timespec (char const *, char **, bool);
+
+enum { REFLINK_BLOCK_SIZE = 4096 };
 
 /* Return true if T does not represent an out-of-range or invalid value.  */
 COMMON_INLINE bool

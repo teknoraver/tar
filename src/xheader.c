@@ -1697,6 +1697,26 @@ sparse_minor_decoder (struct tar_stat_info *st,
     st->sparse_minor = u;
 }
 
+static void
+reflink_coder (MAYBE_UNUSED struct tar_stat_info const *st,
+	       char const *keyword,
+               struct xheader *xhdr,
+	       MAYBE_UNUSED void const *data)
+{
+  char buf[REFLINK_BLOCK_SIZE];
+  size_t pos = (unsigned long)records_written * record_size + (current_block->buffer - record_start->buffer);
+  size_t rem = pos % REFLINK_BLOCK_SIZE;
+  ssize_t n = REFLINK_BLOCK_SIZE - 1024 - rem - xhdr->size - 24 - 500;
+
+  if (n < 0)
+    n += REFLINK_BLOCK_SIZE;
+
+  memset (buf, 0, n);
+  snprintf (buf, n, "%08zu", round_up(pos + n + 24 + 20, REFLINK_BLOCK_SIZE));
+
+  xheader_print_n (xhdr, keyword, buf, n);
+}
+
 struct xhdr_tab const xhdr_tab[] = {
   { "atime",    atime_coder,    atime_decoder,    0, false },
   { "comment",  dummy_coder,    dummy_decoder,    0, false },
@@ -1775,6 +1795,9 @@ struct xhdr_tab const xhdr_tab[] = {
      were stored by some previous rule (duplicates) -- we just have to make sure
      they are restored *only once* during extraction later on. */
   { "SCHILY.xattr", xattr_coder, xattr_decoder, 0, true },
+
+  /* Padding to align the file data to the block size.  */
+  { "REFLINK.alignment", reflink_coder, dummy_decoder, 0, false },
 
   { NULL, NULL, NULL, 0, false }
 };

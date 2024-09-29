@@ -1135,6 +1135,36 @@ close_archive (void)
   if (verify_option)
     verify_volume ();
 
+  if (reflink_option && access_mode == ACCESS_WRITE)
+    {
+      off_t pos = (unsigned long)records_written * record_size + (current_block->buffer - record_start->buffer);
+
+      /* Pad the archive to the next reflink block boundary,
+       * otherwise reflink will fail extracting the last file. */
+      if (pos % REFLINK_BLOCK_SIZE != 0)
+        {
+	  if (seekable_archive)
+	    {
+	      pos = round_up (pos, REFLINK_BLOCK_SIZE);
+	      if (ftruncate (archive, pos) != 0)
+		close_error (_("Cannot pad archive to reflink block boundary"));
+	    }
+	  else
+	    {
+	      size_t pad = REFLINK_BLOCK_SIZE - pos % REFLINK_BLOCK_SIZE;
+	      char *buf = xcalloc (pad, 1);
+
+	      if (!buf)
+		close_error (_("Cannot allocate memory"));
+
+	      if (write (archive, buf, pad) != pad)
+		close_error (_("Cannot pad archive to reflink block boundary"));
+
+	      free (buf);
+	    }
+        }
+    }
+
   if (rmtclose (archive) < 0)
     close_error (*archive_name_cursor);
 

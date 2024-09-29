@@ -246,14 +246,14 @@ format_checkpoint_string (FILE *fp, size_t len,
       if (do_write)
 	/* TRANSLATORS: This is a "checkpoint of write operation",
 	 *not* "Writing a checkpoint".
-	 E.g. in Spanish "Punto de comprobación de escritura",
-	 *not* "Escribiendo un punto de comprobación" */
+	 E.g. in Spanish "Punto de comprobacion de escritura",
+	 *not* "Escribiendo un punto de comprobacion" */
 	input = gettext ("Write checkpoint %u");
       else
 	/* TRANSLATORS: This is a "checkpoint of read operation",
 	 *not* "Reading a checkpoint".
-	 E.g. in Spanish "Punto de comprobación de lectura",
-	 *not* "Leyendo un punto de comprobación" */
+	 E.g. in Spanish "Punto de comprobacion de lectura",
+	 *not* "Leyendo un punto de comprobacion" */
 	input = gettext ("Read checkpoint %u");
     }
 

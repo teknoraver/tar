@@ -276,6 +276,9 @@ extern int acls_option;
 /* If true, save the user and root xattrs.  */
 extern bool xattrs_option;
 
+/* If true, use reflinks when possible.  */
+extern bool reflink_option;
+
 /* When set, strip the given number of file name components from the file name
    before extracting */
 extern idx_t strip_name_components;
@@ -395,6 +398,20 @@ extern bool show_transformed_names_option;
    timestamps from archives with an unusual member order. It is automatically
    set for incremental archives. */
 extern bool delay_directory_restore_option;
+
+/* The block size that --reflink aligns member data to; FICLONERANGE
+   requires source and destination ranges aligned to the filesystem
+   block size, for which this is a safe upper bound.  */
+enum { REFLINK_BLOCK_SIZE = 4096 };
+
+/* Rounds up n to the next multiple of m. Only works if m is a power of two. */
+COMMON_INLINE off_t
+round_up (off_t n, off_t m)
+{
+  m--;
+  return (n + m) & ~m;
+}
+
 
 /* Declarations for each module.  */
 
@@ -927,6 +944,14 @@ void update_archive (void);
 
 /* Module xheader.c.  */
 
+/* Value for xheader_store of a "comment" keyword; used by --reflink
+   to pad the extended header to a REFLINK_BLOCK_SIZE boundary.  */
+struct xheader_comment
+{
+  char const *comment;
+  idx_t length;
+};
+
 void xheader_decode (struct tar_stat_info *stat);
 void xheader_decode_global (struct xheader *xhdr);
 void xheader_store (char const *keyword, struct tar_stat_info *st,
@@ -944,6 +969,7 @@ void xheader_string_begin (struct xheader *xhdr);
 void xheader_string_add (struct xheader *xhdr, char const *s);
 bool xheader_string_end (struct xheader *xhdr, char const *keyword);
 bool xheader_keyword_deleted_p (const char *kw);
+bool xheader_comment_overridden_p (void);
 char *xheader_format_name (struct tar_stat_info *st, const char *fmt,
 			   intmax_t n);
 void xheader_xattr_init (struct tar_stat_info *st);

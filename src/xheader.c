@@ -129,6 +129,17 @@ xheader_keyword_override_p (const char *keyword)
   return false;
 }
 
+/* Return true if pax keyword overrides prevent sizing the "comment"
+   record used by --reflink to align member data: 'keyword:=value'
+   overrides are appended after the comment record is sized, and a
+   deleted "comment" keyword drops the record altogether.  */
+bool
+xheader_comment_overridden_p (void)
+{
+  return keyword_override_list != NULL
+	 || xheader_keyword_deleted_p ("comment");
+}
+
 static void
 xheader_list_append (struct keyword_list **root, char const *kw,
 		     char const *value)
@@ -1662,9 +1673,19 @@ sparse_minor_decoder (struct tar_stat_info *st,
     st->sparse_minor = u;
 }
 
+static void
+comment_coder (struct tar_stat_info const *UNNAMED (st),
+	       char const *keyword,
+	       struct xheader *xhdr,
+	       void const *data)
+{
+  struct xheader_comment const *comment = data;
+  xheader_print_n (xhdr, keyword, comment->comment, comment->length);
+}
+
 struct xhdr_tab const xhdr_tab[] = {
   { "atime",    atime_coder,    atime_decoder,    0, false },
-  { "comment",  dummy_coder,    dummy_decoder,    0, false },
+  { "comment",  comment_coder,  dummy_decoder,    0, false },
   { "charset",  dummy_coder,    dummy_decoder,    0, false },
   { "ctime",    ctime_coder,    ctime_decoder,    0, false },
   { "gid",      gid_coder,      gid_decoder,      0, false },

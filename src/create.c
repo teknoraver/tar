@@ -944,6 +944,53 @@ start_header (struct tar_stat_info *st)
       if (xattrs_option)
 	for (idx_t i = 0; i < st->xattr_map.xm_size; i++)
 	  xheader_store (st->xattr_map.xm_map[i].xkey, st, &i);
+      if (reflink_option && S_ISREG (st->stat.st_mode) && st->stat.st_size
+	  /* Sparse members add GNU.sparse.* records after this point,
+	     which would invalidate the alignment; they cannot be
+	     reflinked on extraction anyway.  */
+	  && ! (sparse_option && ST_IS_SPARSE (st->stat)))
+	{
+	  if (xheader_comment_overridden_p ())
+	    {
+	      static bool warned;
+	      if (!warned)
+		{
+		  paxwarn (0, _("--pax-option keyword overrides prevent"
+				" --reflink data alignment"));
+		  warned = true;
+		}
+	    }
+	  else
+	    {
+	      /* On disk the member is laid out as the pax extended header
+		 block, the pax data (rounded up to BLOCKSIZE), the ustar
+		 header block, then the file data.  Choose the comment
+		 payload length so that the file data lands on a
+		 REFLINK_BLOCK_SIZE boundary.  COMMENT_OVERHEAD is the
+		 record's own framing (up to 4 length digits + " comment="
+		 + "\n"); an over-estimate is harmless because the
+		 BLOCKSIZE rounding of the pax data absorbs the few unused
+		 bytes.  */
+	      enum { COMMENT_OVERHEAD = 14 };
+	      off_t pos = (records_written * record_size
+			   + (current_block->buffer - record_start->buffer));
+	      off_t before = (pos + 2 * BLOCKSIZE + st->xhdr.size
+			      + COMMENT_OVERHEAD);
+	      off_t n = round_up (before, REFLINK_BLOCK_SIZE) - before;
+	      static char comment_buf[REFLINK_BLOCK_SIZE];
+
+	      if (comment_buf[0] == 0)
+		memset (comment_buf, ' ', sizeof (comment_buf));
+
+	      struct xheader_comment comment =
+		{
+		  .comment = comment_buf,
+		  .length = n,
+		};
+
+	      xheader_store ("comment", st, &comment);
+	    }
+	}
     }
 
   return header;

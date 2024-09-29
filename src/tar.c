@@ -89,6 +89,7 @@ bool xattrs_option;
 idx_t strip_name_components;
 bool show_omitted_dirs_option;
 bool sparse_option;
+bool reflink_option;
 intmax_t tar_sparse_major;
 intmax_t tar_sparse_minor;
 enum hole_detection_method hole_detection;
@@ -406,6 +407,7 @@ enum
   QUOTING_STYLE_OPTION,
   RECORD_SIZE_OPTION,
   RECURSIVE_UNLINK_OPTION,
+  REFLINK_OPTION,
   REMOVE_FILES_OPTION,
   RESTRICT_OPTION,
   RMT_COMMAND_OPTION,
@@ -587,6 +589,9 @@ static struct argp_option options[] = {
   {"check-device", CHECK_DEVICE_OPTION, NULL, 0,
    N_("check device numbers when creating incremental archives (default)"),
    GRID_MODIFIER },
+  {"reflink", REFLINK_OPTION, NULL, 0,
+   N_("align file data when creating an archive, clone file data when"
+      " extracting"), GRID_MODIFIER },
 
   {NULL, 0, NULL, 0,
    N_("Overwrite control:"), GRH_OVERWRITE },
@@ -1763,6 +1768,11 @@ parse_opt (int key, char *arg, struct argp_state *state)
       sparse_option = true;
       break;
 
+    case REFLINK_OPTION:
+      set_archive_format ("posix");
+      reflink_option = true;
+      break;
+
     case SKIP_OLD_FILES_OPTION:
       set_old_files_option (SKIP_OLD_FILES, args->loc);
       break;
@@ -2501,6 +2511,30 @@ decode_options (int argc, char **argv)
     assert_format (format_mask (OLDGNU_FORMAT)
 		   | format_mask (GNU_FORMAT)
 		   | format_mask (POSIX_FORMAT));
+
+  /* Data alignment for --reflink needs the pax comment record and a
+     final archive that is a plain uncompressed local file; warn about
+     combinations that silently defeat it.  */
+  if (reflink_option)
+    {
+      if (subcommand_option == CREATE_SUBCOMMAND)
+	{
+	  if (archive_format != POSIX_FORMAT)
+	    paxwarn (0, _("--reflink data alignment requires the posix"
+			  " format"));
+	  if (multi_volume_option)
+	    paxwarn (0, _("--reflink is ineffective with multi-volume"
+			  " archives"));
+	  if (use_compress_program_option)
+	    paxwarn (0, _("--reflink is ineffective with compressed"
+			  " archives"));
+	}
+      else if (subcommand_option == APPEND_SUBCOMMAND
+	       || subcommand_option == UPDATE_SUBCOMMAND
+	       || subcommand_option == CAT_SUBCOMMAND)
+	paxwarn (0, _("--reflink is ineffective when appending to an"
+		      " archive"));
+    }
 
   if (occurrence_option)
     {

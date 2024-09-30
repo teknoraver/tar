@@ -1717,6 +1717,17 @@ reflink_coder (MAYBE_UNUSED struct tar_stat_info const *st,
   xheader_print_n (xhdr, keyword, buf, n);
 }
 
+static void
+reflink_decoder (MAYBE_UNUSED struct tar_stat_info *st,
+		 MAYBE_UNUSED char const *keyword,
+		 MAYBE_UNUSED char const *arg,
+		 MAYBE_UNUSED size_t size)
+{
+  uintmax_t u = 0;
+  if (decode_num (&u, arg, TYPE_MAXIMUM (off_t), keyword))
+    st->data_start = u;
+}
+
 struct xhdr_tab const xhdr_tab[] = {
   { "atime",    atime_coder,    atime_decoder,    0, false },
   { "comment",  dummy_coder,    dummy_decoder,    0, false },
@@ -1797,7 +1808,7 @@ struct xhdr_tab const xhdr_tab[] = {
   { "SCHILY.xattr", xattr_coder, xattr_decoder, 0, true },
 
   /* Padding to align the file data to the block size.  */
-  { "REFLINK.alignment", reflink_coder, dummy_decoder, 0, false },
+  { "REFLINK.alignment", reflink_coder, reflink_decoder, 0, false },
 
   { NULL, NULL, NULL, 0, false }
 };

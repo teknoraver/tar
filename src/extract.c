@@ -27,6 +27,9 @@
 #include <priv-set.h>
 #include <root-uid.h>
 #include <utimens.h>
+#if defined(__linux__)
+#include <linux/fs.h>		/* For FICLONERANGE */
+#endif
 
 #include "common.h"
 
@@ -1271,6 +1274,33 @@ open_output_file (char const *file_name, int typeflag, mode_t mode,
 }
 
 static int
+reflink_file (MAYBE_UNUSED int fd, MAYBE_UNUSED struct tar_stat_info const *st)
+{
+#ifdef FICLONERANGE
+  if (st->stat.st_size <= 0)
+    return 0;
+
+  int rc;
+
+  struct file_clone_range fcr = {
+    .src_fd = archive,
+    .src_offset = st->data_start,
+    .src_length = round_up (st->stat.st_size, REFLINK_BLOCK_SIZE),
+  };
+
+  rc = ioctl(fd, FICLONERANGE, &fcr);
+  if (rc < 0)
+      return rc;
+
+  rc = ftruncate(fd, st->stat.st_size);
+  if (rc < 0)
+      return rc;
+#endif
+
+  return 0;
+}
+
+static int
 extract_file (char *file_name, int typeflag)
 {
   int fd;
@@ -1327,39 +1357,51 @@ extract_file (char *file_name, int typeflag)
   if (current_stat_info.is_sparse)
     sparse_extract_file (fd, &current_stat_info, &size);
   else
-    for (size = current_stat_info.stat.st_size; size > 0; )
-      {
-	mv_size_left (size);
+    {
+      bool reflinked = false;
 
-	/* Locate data, determine max length writeable, write it,
-	   block that we have used the data, then check if the write
-	   worked.  */
+      if (reflink_option > 0 && !to_stdout_option && !to_command_option && current_stat_info.data_start)
+	{
+	  status = reflink_file (fd, &current_stat_info);
+	  reflinked = status == 0;
+	}
 
-	data_block = find_next_block ();
-	if (! data_block)
-	  {
-	    paxerror (0, _("Unexpected EOF in archive"));
-	    break;		/* FIXME: What happens, then?  */
-	  }
+      for (size = current_stat_info.stat.st_size; size > 0; )
+	{
+	  mv_size_left (size);
 
-	written = available_space_after (data_block);
+	  /* Locate data, determine max length writeable, write it,
+	   * block that we have used the data, then check if the write
+	     worked.  */
 
-	if (written > size)
-	  written = size;
-	errno = 0;
-	idx_t count = blocking_write (fd, data_block->buffer, written);
-	size -= written;
+	  data_block = find_next_block ();
+	  if (! data_block)
+	    {
+	      paxerror (0, _("Unexpected EOF in archive"));
+	      break;		/* FIXME: What happens, then?  */
+	    }
 
-	set_next_block_after ((union block *)
-			      (data_block->buffer + written - 1));
-	if (count != written)
-	  {
-	    if (!to_command_option)
-	      write_error_details (file_name, count, written);
-	    /* FIXME: shouldn't we restore from backup? */
-	    break;
-	  }
-      }
+	  written = available_space_after (data_block);
+
+	  if (written > size)
+	    written = size;
+	  errno = 0;
+	  idx_t count = written;
+	  if (!reflinked)
+	    count = blocking_write (fd, data_block->buffer, written);
+	  size -= written;
+
+	  set_next_block_after ((union block *)
+				    (data_block->buffer + written - 1));
+	  if (count != written)
+	    {
+	      if (!to_command_option)
+		write_error_details (file_name, count, written);
+	      /* FIXME: shouldn't we restore from backup? */
+	      break;
+	    }
+	}
+    }
 
   skim_file (size, false);
 

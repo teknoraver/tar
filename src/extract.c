@@ -27,6 +27,10 @@
 #include <priv-set.h>
 #include <root-uid.h>
 #include <utimens.h>
+#if defined(__linux__)
+#include <sys/ioctl.h>
+#include <linux/fs.h>		/* For FICLONERANGE */
+#endif
 
 #include "common.h"
 
@@ -1246,6 +1250,35 @@ open_output_file (char const *file_name, int typeflag, mode_t mode,
 }
 
 static int
+reflink_file (MAYBE_UNUSED int fd, MAYBE_UNUSED size_t size)
+{
+#ifdef FICLONERANGE
+  if (size <= 0)
+    return 0;
+
+  size_t pos = (unsigned long)(records_read-1) * record_size + (current_block->buffer - record_start->buffer);
+  struct file_clone_range fcr = {
+    .src_fd = archive,
+    .src_offset = pos,
+    .src_length = round_up (size, REFLINK_BLOCK_SIZE),
+  };
+  int rc;
+
+  rc = ioctl(fd, FICLONERANGE, &fcr);
+  if (rc < 0)
+      return rc;
+
+  rc = ftruncate(fd, size);
+  if (rc < 0)
+      return rc;
+
+  return 0;
+#else
+  return -ENOSYS;
+#endif
+}
+
+static int
 extract_file (char *file_name, int typeflag)
 {
   int fd;
@@ -1254,7 +1287,7 @@ extract_file (char *file_name, int typeflag)
   int status;
   size_t count;
   size_t written;
-  bool interdir_made = false;
+  bool interdir_made = false, reflinked = false;
   mode_t mode = (current_stat_info.stat.st_mode & MODE_RWX
 		 & ~ (0 < same_owner_option ? S_IRWXG | S_IRWXO : 0));
   mode_t current_mode = 0;
@@ -1301,7 +1334,13 @@ extract_file (char *file_name, int typeflag)
   mv_begin_read (&current_stat_info);
   if (current_stat_info.is_sparse)
     sparse_extract_file (fd, &current_stat_info, &size);
-  else
+  else {
+    if (reflink_option) {
+	reflinked = reflink_file (fd, current_stat_info.stat.st_size) == 0;
+	if (reflinked)
+	  size = current_stat_info.stat.st_size;
+    }
+    if (!reflinked) {
     for (size = current_stat_info.stat.st_size; size > 0; )
       {
 	mv_size_left (size);
@@ -1335,6 +1374,8 @@ extract_file (char *file_name, int typeflag)
 	    break;
 	  }
       }
+      }
+  }
 
   skim_file (size, false);
 

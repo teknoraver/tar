@@ -463,6 +463,7 @@ extern uintmax_t continued_file_offset;
 extern off_t records_written;
 extern union block *record_start;
 extern union block *current_block;
+extern off_t records_read;
 
 char *drop_volume_label_suffix (const char *label);
 

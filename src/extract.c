@@ -30,7 +30,15 @@
 #include <same-inode.h>
 #include <utimens.h>
 
+#ifdef __linux__
+# include <linux/fs.h>
+# ifdef FICLONERANGE
+#  include <sys/ioctl.h>
+# endif
+#endif
+
 #include "common.h"
+#include <rmt.h>
 
 dev_t root_device;
 
@@ -1317,6 +1325,65 @@ open_output_file (char const *file_name, char typeflag, mode_t mode,
   return fd;
 }
 
+/* Clone the current member's data from the archive into FD, a regular
+   file of SIZE bytes.  Return 0 on success, -1 (with errno set) on
+   failure, in which case the file may hold partially cloned data that
+   the caller must discard before falling back to a regular copy.  */
+static int
+reflink_file (MAYBE_UNUSED int fd, MAYBE_UNUSED off_t size)
+{
+#ifdef FICLONERANGE
+  if (size <= 0)
+    return 0;
+
+  off_t pos = archive_read_position ();
+  off_t len = round_up (size, REFLINK_BLOCK_SIZE);
+
+  /* An unaligned position means the archive was not created with
+     --reflink; do not bother issuing a doomed syscall per member.  */
+  if (pos % REFLINK_BLOCK_SIZE != 0)
+    {
+      errno = EINVAL;
+      return -1;
+    }
+
+  /* The last member of the archive: the rounded-up range would poke
+     past the end of the archive, but a range ending at the source EOF
+     is exempted from the length alignment requirement, so clone up to
+     there (src_length of 0 means to the end of the source).  A member
+     truncated by a short archive is left to the regular copy, which
+     diagnoses the missing data.  */
+  if (pos + len > archive_stat.st_size)
+    {
+      if (pos + size > archive_stat.st_size)
+	{
+	  errno = EINVAL;
+	  return -1;
+	}
+      len = 0;
+    }
+
+  struct file_clone_range fcr = {
+    .src_fd = archive,
+    .src_offset = pos,
+    .src_length = len,
+  };
+
+  if (ioctl (fd, FICLONERANGE, &fcr) < 0)
+    return -1;
+
+  /* The clone extended the file past its real size, up to a multiple
+     of REFLINK_BLOCK_SIZE or to the end of the archive; cut it back.  */
+  if (ftruncate (fd, size) < 0)
+    return -1;
+
+  return 0;
+#else
+  errno = ENOSYS;
+  return -1;
+#endif
+}
+
 static bool
 extract_file (char *file_name, char typeflag)
 {
@@ -1324,7 +1391,7 @@ extract_file (char *file_name, char typeflag)
   off_t size;
   union block *data_block;
   int status;
-  bool interdir_made = false;
+  bool interdir_made = false, reflinked = false;
   mode_t mode = (current_stat_info.stat.st_mode & MODE_RWX
 		 & ~ (0 < same_owner_option ? S_IRWXG | S_IRWXO : 0));
   mode_t current_mode = 0;
@@ -1369,36 +1436,56 @@ extract_file (char *file_name, char typeflag)
   if (current_stat_info.is_sparse)
     sparse_extract_file (fd, &current_stat_info, &size);
   else
-    for (size = current_stat_info.stat.st_size; size > 0; )
-      {
-	mv_size_left (size);
-
-	/* Locate data, determine max length writeable, write it,
-	   block that we have used the data, then check if the write
-	   worked.  */
-
-	data_block = find_next_block ();
-	if (! data_block)
+    {
+      /* Cloning needs a destination regular file and a seekable local
+	 archive; pipes, compressed and remote archives cannot work, and
+	 with -O or --to-command the descriptor is not a fresh file.  */
+      if (reflink_option && !to_stdout_option && !to_command_option
+	  && seekable_archive && !_isrmt (archive))
+	{
+	  reflinked = reflink_file (fd, current_stat_info.stat.st_size) == 0;
+	  if (reflinked)
+	    size = current_stat_info.stat.st_size;
+	  /* A failed attempt may have cloned data past the real end of
+	     file (FICLONERANGE is not atomic across extents, and the
+	     final truncate can fail); the fallback copy below rewrites
+	     the data but not the length, so start from an empty file.  */
+	  else if (ftruncate (fd, 0) < 0)
+	    paxerror (errno, _("%s: Cannot truncate"),
+		      quotearg_colon (file_name));
+	}
+      if (!reflinked)
+	for (size = current_stat_info.stat.st_size; size > 0; )
 	  {
-	    paxerror (0, _("Unexpected EOF in archive"));
-	    break;		/* FIXME: What happens, then?  */
-	  }
+	    mv_size_left (size);
 
-	idx_t written = available_space_after (data_block);
+	    /* Locate data, determine max length writeable, write it,
+	       block that we have used the data, then check if the write
+	       worked.  */
 
-	if (written > size)
-	  written = size;
-	errno = 0;
-	idx_t count = blocking_write (fd, charptr (data_block), written);
-	size -= written;
+	    data_block = find_next_block ();
+	    if (! data_block)
+	      {
+		paxerror (0, _("Unexpected EOF in archive"));
+		break;		/* FIXME: What happens, then?  */
+	      }
 
-	set_next_block_after (charptr (data_block) + written - 1);
-	if (count != written)
-	  {
-	    if (!to_command_option)
-	      write_error_details (file_name, count, written);
-	    /* FIXME: shouldn't we restore from backup? */
-	    break;
+	    idx_t written = available_space_after (data_block);
+
+	    if (written > size)
+	      written = size;
+	    errno = 0;
+	    idx_t count = blocking_write (fd, charptr (data_block), written);
+	    size -= written;
+
+	    set_next_block_after (charptr (data_block) + written - 1);
+	    if (count != written)
+	      {
+		if (!to_command_option)
+		  write_error_details (file_name, count, written);
+		/* FIXME: shouldn't we restore from backup? */
+		break;
+	      }
 	  }
       }
 

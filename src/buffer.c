@@ -1120,6 +1120,16 @@ seek_archive (off_t size)
   return nblk;
 }
 
+/* Return the byte offset in the archive file of the current block,
+   i.e. of the data that the next find_next_block call will return.
+   Only meaningful when reading a seekable local archive.  */
+off_t
+archive_read_position (void)
+{
+  return (start_offset + (records_read - 1) * record_size
+	  + (current_block->buffer - record_start->buffer));
+}
+
 /* Close the archive file.  */
 void
 close_archive (void)

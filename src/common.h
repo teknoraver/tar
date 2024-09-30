@@ -493,6 +493,7 @@ void clear_read_error_count (void);
 _Noreturn void archive_write_error (ssize_t status);
 void archive_read_error (void);
 off_t seek_archive (off_t size);
+off_t archive_read_position (void);
 void set_start_time (void);
 
 enum { TF_READ, TF_WRITE, TF_DELETED };

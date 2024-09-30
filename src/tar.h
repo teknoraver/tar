@@ -374,6 +374,9 @@ struct tar_stat_info
 
   /* Exclusion list */
   struct exclist *exclude_list;
+
+  /* Offset in the archive for reflinked files */
+  off_t data_start;
 };
 
 union block

@@ -318,6 +318,29 @@ database files created by such systems as \fBDBM\fR).  When given this
 option, \fBtar\fR attempts to determine if the file is sparse prior to
 archiving it, and if so, to reduce the resulting archive size by not
 dumping empty parts of the file.
+.TP
+\fB\-\-reflink\fR
+This option is used to do a copy-on-write extraction.
+.br
+On archive creation this option will pad the file data to a 4k boundary
+using the "comment" pax attribute, which is ignored on extraction.
+For this reason, this option implies \fB\-\-format=pax\fR.
+
+On archive extraction instead, this option will try to reflink data from
+the tar archive to the destination file using the \fBFICLONERANGE\fR ioctl.
+To actually work, the following conditions must be met:
+.br
+\- the archive must have the data aligned to a 4k boundary
+(like one created with this option)
+.br
+\- the archive file must be on the same filesystem as the destination file
+.br
+\- the archive must not come from a pipe (which implies it's uncompressed)
+.br
+\- the filesystem must support reflinks (currently only Btrfs,
+XFS and few others filesystems support them).
+.br
+In case the reflink fails, it will fall back to a standard copy.
 .SS Overwrite control
 These options control \fBtar\fR actions when extracting a file over
 an existing copy on disk.

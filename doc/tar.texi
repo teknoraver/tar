@@ -3414,6 +3414,25 @@ Remove existing
 directory hierarchies before extracting directories of the same name
 from the archive.  @xref{Recursive Unlink}.
 
+@opsummary{reflink}
+@item --reflink
+
+When creating an archive, align the data of each member on a 4
+kilobyte boundary by padding its extended header with a @samp{comment}
+keyword, which is ignored on extraction.  This option implies
+@option{--format=posix}; the alignment is only useful for archives
+that are stored as plain uncompressed files.
+
+When extracting, attempt to create copy-on-write clones (@dfn{reflinks})
+of the member data directly from the archive file instead of copying
+it, using the @code{FICLONERANGE} @code{ioctl}.  This requires an
+archive with aligned member data (such as one created with this
+option), residing on the same filesystem as the extracted files, and a
+filesystem supporting reflinks (e.g., Btrfs or XFS).  Extraction is
+then much faster, and the extracted files share their disk blocks with
+the archive until they are modified.  If a member cannot be cloned,
+@command{tar} silently falls back to a regular copy.
+
 @opsummary{remove-files}
 @item --remove-files
 

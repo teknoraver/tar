@@ -24,6 +24,23 @@ as argument to --mtime option (see GNU tar manual, chapter 4
 Defines output format for the COMMAND set by the above option.  If
 used, command output will be parsed using strptime(3).
 
+* New option: --reflink
+
+When creating an archive, align member data on a 4 kilobyte boundary
+by padding the pax extended headers (implies --format=posix).  When
+extracting such an archive on a filesystem supporting copy-on-write
+clones (e.g. Btrfs, XFS), clone the member data from the archive
+using reflinks instead of copying it: no file data is read or
+written, and the extracted files share their disk blocks with the
+archive, taking no extra disk space.  Extracting a linux source tree
+this way is 8 times faster on a NVMe drive, and a single 2 GiB
+member extracts in milliseconds, hundreds of times faster.
+
+This helps only when the archive is a seekable uncompressed file on
+the same reflink-capable filesystem as the destination: compressed
+or piped archives, or foreign filesystems, are extracted the usual
+way with a regular copy.
+
 * Changes to behavior
 
 ** Skip file or archive member if transformed name is empty

@@ -1,0 +1,80 @@
+# Process this file with autom4te to create testsuite. -*- Autotest -*-
+# Test suite for GNU tar.
+# Copyright 2013-2025 Free Software Foundation, Inc.
+#
+# GNU tar is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+#
+# GNU tar is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# Description: ensure tar can create archives with the data alignment
+# padding used by reflinks, due option --reflink, and extract them
+# correctly both with and without reflinks.
+#
+
+AT_SETUP([reflink archive])
+AT_KEYWORDS([create extract reflink archive])
+
+AT_TAR_CHECK([
+mkdir dir
+: > dir/0k
+genfile --length 1 --file dir/1b
+genfile --length 3070 --file dir/3k
+genfile --length 4096 --file dir/4k
+genfile --length 5000 --file dir/5k
+genfile --length 9216 --file dir/9k
+
+# A deep member name grows the extended header past the size of the
+# pad record, exercising the comment sizing logic.
+d=@S|@(awk 'BEGIN { s = "dir"
+  for (i = 0; i < 50; i++)
+    s = s "/looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong" i
+  print s }')
+mkdir -p @S|@d || exit 77
+genfile --length 2000 --file @S|@d/deep
+
+tar -cf foo.tar --reflink --sort=name dir
+
+# each non-empty regular member carries a comment pad record
+LC_ALL=C tr -c '@<:@:print:@:>@' '@<:@\n*@:>@' < foo.tar |
+  LC_ALL=C grep -c ' comment='
+
+# extract using reflinks and verify contents
+mkdir out
+(cd out && tar -xf ../foo.tar --reflink)
+cmp dir/1b out/dir/1b
+cmp dir/3k out/dir/3k
+cmp dir/4k out/dir/4k
+cmp dir/5k out/dir/5k
+cmp dir/9k out/dir/9k
+cmp @S|@d/deep out/@S|@d/deep
+echo reflink-ok
+
+# extraction to stdout must not use reflinks
+tar -xOf foo.tar --reflink dir/3k dir/5k > cat.out
+cat dir/3k dir/5k | cmp - cat.out
+echo stdout-ok
+
+# extracting a non-aligned archive falls back to a regular copy
+tar -cf plain.tar dir
+mkdir out2
+(cd out2 && tar -xf ../plain.tar --reflink)
+cmp dir/9k out2/dir/9k
+echo fallback-ok
+],
+[0],
+[6
+reflink-ok
+stdout-ok
+fallback-ok
+],[],[],[],[pax])
+
+AT_CLEANUP

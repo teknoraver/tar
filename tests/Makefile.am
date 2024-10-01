@@ -216,6 +216,8 @@ TESTSUITE_AT = \
  positional03.at\
  recurs02.at\
  recurse.at\
+ reflink.at\
+ reflink01.at\
  remfiles01.at\
  remfiles02.at\
  remfiles03.at\

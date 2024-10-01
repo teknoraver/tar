@@ -1,0 +1,73 @@
+# Process this file with autom4te to create testsuite. -*- Autotest -*-
+# Test suite for GNU tar.
+# Copyright 2013-2025 Free Software Foundation, Inc.
+#
+# GNU tar is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+#
+# GNU tar is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# Description: on a filesystem supporting copy-on-write clones, ensure
+# that extracting with --reflink really shares blocks with the archive
+# instead of silently falling back to a copy.  This catches alignment
+# regressions on the create side, which would otherwise only show up
+# as a performance loss.  The test is skipped when the filesystem or
+# the required tools do not support reflinks.
+#
+
+AT_SETUP([reflink clone sharing])
+AT_KEYWORDS([create extract reflink reflink01])
+
+AT_TAR_CHECK([
+# require a filesystem with working reflinks and a filefrag that
+# reports shared extents
+genfile --length 100000 --file probe.src
+cp --reflink=always probe.src probe 2>/dev/null || exit 77
+sync
+filefrag -v probe 2>/dev/null | grep -qi shared || exit 77
+
+mkdir dir
+genfile --length 50000 --file dir/a
+genfile --length 4096 --file dir/b
+genfile --length 5001 --file dir/c
+
+tar -cf foo.tar --reflink --sort=name dir
+
+mkdir out
+(cd out && tar -xf ../foo.tar --reflink)
+cmp dir/a out/dir/a
+cmp dir/b out/dir/b
+cmp dir/c out/dir/c
+
+# every extracted member must share extents with the archive
+sync
+filefrag -v out/dir/a | grep -qi shared || echo a not shared
+filefrag -v out/dir/b | grep -qi shared || echo b not shared
+filefrag -v out/dir/c | grep -qi shared || echo c not shared
+echo shared-ok
+
+# with a small record size the rounded-up range of the last member
+# pokes past the end of the archive: it must be cloned up to the
+# archive EOF and still share its extents
+tar -cf small.tar --reflink --sort=name -b 1 dir
+mkdir out2
+(cd out2 && tar -xf ../small.tar --reflink)
+cmp dir/c out2/dir/c
+sync
+filefrag -v out2/dir/c | grep -qi shared || echo tail not shared
+echo eof-clone-ok
+],
+[0],
+[shared-ok
+eof-clone-ok
+],[],[],[],[pax])
+
+AT_CLEANUP

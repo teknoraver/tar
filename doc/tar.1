@@ -324,6 +324,17 @@ database files created by such systems as \fBDBM\fR).  When given this
 option, \fBtar\fR attempts to determine if the file is sparse prior to
 archiving it, and if so, to reduce the resulting archive size by not
 dumping empty parts of the file.
+.TP
+\fB\-\-reflink\fR
+Use filesystem reflink via ioctl(FICLONERANGE) to create a copy
+of a file. This allows faster and space-saving copies of files,
+but only works if the underlying filesystem supports reflinks
+and if the file extracted is being extracted are on
+the same mountpoint. If the reflink fails, the file is copied normally.
+Reflinks works only if the file data is aligned to a 4k boundary, so
+when creating an archive with this option, the data is padded
+by using the 'comment' pax attribute, which is ignored when extracting.
+Because of the attribute, this option implies \fB\-\-format=pax\fR.
 .SS Overwrite control
 These options control \fBtar\fR actions when extracting a file over
 an existing copy on disk.

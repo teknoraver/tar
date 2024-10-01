@@ -1,0 +1,62 @@
+# Process this file with autom4te to create testsuite. -*- Autotest -*-
+# Test suite for GNU tar.
+# Copyright 2013-2025 Free Software Foundation, Inc.
+#
+# GNU tar is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+#
+# GNU tar is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# Description: ensure tar can create and extract archives with
+# proper padding used by reflinks, due option --reflink.
+#
+
+AT_SETUP([reflink archive])
+AT_KEYWORDS([create extract reflink archive])
+
+AT_TAR_CHECK([
+AT_SORT_PREREQ
+# create files for testing and archive them
+mkdir dir
+: > dir/0k
+dd status=none if=/dev/zero of=dir/3k bs=1k count=3
+dd status=none if=/dev/zero of=dir/5k bs=1k count=5
+dd status=none if=/dev/zero of=dir/9k bs=1k count=9
+tar -vcf foo.tar --reflink --sort=name dir
+ls foo.tar
+
+# check that the archive has proper padding for reflinks
+size=@S|@(stat -c%s foo.tar)
+echo @S|@((size&4095))
+
+# check for comment records in the archive
+strings foo.tar |grep -c '@<:@@<:@:digit:@:>@@:>@ comment= '
+
+# extract the archive using reflinks
+tar xvf foo.tar --reflink
+],
+[0],
+[dir/
+dir/0k
+dir/3k
+dir/5k
+dir/9k
+foo.tar
+0
+3
+dir/
+dir/0k
+dir/3k
+dir/5k
+dir/9k
+],[],[],[],[gnu])
+
+AT_CLEANUP

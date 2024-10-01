@@ -544,3 +544,6 @@ m4_include([star/ustar-big-2g.at])
 m4_include([star/ustar-big-8g.at])
 
 m4_include([star/pax-big-10g.at])
+
+AT_BANNER([Reflinks])
+m4_include([reflink.at])

@@ -280,6 +280,9 @@ GLOBAL int acls_option;
 /* If positive, save the user and root xattrs.  */
 GLOBAL int xattrs_option;
 
+/* If non zero, set file offset to seek to */
+extern int offset_option;
+
 /* When set, strip the given number of file name components from the file name
    before extracting */
 GLOBAL size_t strip_name_components;
@@ -287,6 +290,7 @@ GLOBAL size_t strip_name_components;
 GLOBAL bool show_omitted_dirs_option;
 
 GLOBAL bool sparse_option;
+GLOBAL int offset_option;
 GLOBAL unsigned tar_sparse_major;
 GLOBAL unsigned tar_sparse_minor;
 

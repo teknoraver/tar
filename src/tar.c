@@ -90,6 +90,7 @@ int xattrs_option;
 size_t strip_name_components;
 bool show_omitted_dirs_option;
 bool sparse_option;
+int offset_option;
 intmax_t tar_sparse_major;
 intmax_t tar_sparse_minor;
 enum hole_detection_method hole_detection;
@@ -408,6 +409,7 @@ enum
   QUOTING_STYLE_OPTION,
   RECORD_SIZE_OPTION,
   RECURSIVE_UNLINK_OPTION,
+  OFFSET_OPTION,
   REMOVE_FILES_OPTION,
   RESTRICT_OPTION,
   RMT_COMMAND_OPTION,
@@ -571,6 +573,8 @@ static struct argp_option options[] = {
    N_("handle new GNU-format incremental backup"), GRID_MODIFIER },
   {"level", LEVEL_OPTION, N_("NUMBER"), 0,
    N_("dump level for created listed-incremental archive"), GRID_MODIFIER },
+  {"offset", OFFSET_OPTION, N_("NUMBER"), 0,
+   N_("file offset where the archive is located"), GRID_MODIFIER },
   {"ignore-failed-read", IGNORE_FAILED_READ_OPTION, 0, 0,
    N_("do not exit with nonzero on unreadable files"), GRID_MODIFIER },
   {"occurrence", OCCURRENCE_OPTION, N_("NUMBER"), OPTION_ARG_OPTIONAL,
@@ -1774,6 +1778,13 @@ parse_opt (int key, char *arg, struct argp_state *state)
 
     case 'S':
       sparse_option = true;
+      break;
+
+    case OFFSET_OPTION:
+      {
+        char *end;
+        offset_option = stoint (arg, &end, NULL, 0, INTMAX_MAX);
+      }
       break;
 
     case SKIP_OLD_FILES_OPTION:

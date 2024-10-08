@@ -277,6 +277,9 @@ extern int acls_option;
 /* If positive, save the user and root xattrs.  */
 extern int xattrs_option;
 
+/* If non zero, set file offset to seek to */
+extern int offset_option;
+
 /* When set, strip the given number of file name components from the file name
    before extracting */
 extern size_t strip_name_components;

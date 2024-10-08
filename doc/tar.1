@@ -296,6 +296,10 @@ following subcommands: \fB\-\-delete\fR, \fB\-\-diff\fR,
 either on the command line or via the \fB\-T\fR option.  The default
 \fIN\fR is \fB1\fR.
 .TP
+\fB\-\-offset\fR[=\fINUMBER\fR]
+Skip \fINUMBER\fR bytes in the input archive. Used when the archive
+is embedded in another file or it's not at the start of the device.
+.TP
 \fB\-\-restrict\fR
 Disable the use of some potentially harmful options.
 .TP

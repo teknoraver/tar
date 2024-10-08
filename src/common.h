@@ -283,6 +283,9 @@ GLOBAL int xattrs_option;
 /* If positive, use reflinks when available.  */
 GLOBAL int reflink_option;
 
+/* If non zero, set file offset to seek to */
+GLOBAL int offset_option;
+
 /* When set, strip the given number of file name components from the file name
    before extracting */
 GLOBAL size_t strip_name_components;

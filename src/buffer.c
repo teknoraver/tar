@@ -437,6 +437,9 @@ open_compressed_archive (void)
   if (archive == -1)
     return archive;
 
+  if (offset_option)
+    rmtlseek (archive, offset_option, SEEK_SET);
+
   if (!multi_volume_option)
     {
       if (!use_compress_program_option)
@@ -770,6 +773,20 @@ _open_archive (enum access_mode wanted_access)
             enum compress_type type;
 
             archive = STDIN_FILENO;
+
+            if (offset_option)
+              {
+                /* seekable_archive is not set yet, so we need to read the data */
+                char *buf = xmalloc (offset_option);
+                if (!buf)
+                  FATAL_ERROR ((0, 0, _("Not enough memory")));
+
+                int ret = read(archive, buf, offset_option);
+                free (buf);
+                if (ret != offset_option)
+                  FATAL_ERROR ((0, 0, _("Short read on archive")));
+              }
+
             type = check_compressed_archive (&shortfile);
             if (type != ct_tar && type != ct_none)
               FATAL_ERROR ((0, 0,
@@ -1085,7 +1102,7 @@ seek_archive (off_t size)
   if (offset < 0)
     return offset;
 
-  if (offset % record_size)
+  if ((offset - offset_option) % record_size)
     FATAL_ERROR ((0, 0, _("rmtlseek not stopped at a record boundary")));
 
   /* Convert to number of records */

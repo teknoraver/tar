@@ -1371,7 +1371,7 @@ skim_file (off_t size, bool must_copy)
 
   if (seekable_archive && !must_copy)
     {
-      off_t nblk = seek_archive (size);
+      off_t nblk = seek_archive (size + offset_option);
       if (nblk >= 0)
 	size -= nblk * BLOCKSIZE;
       else

@@ -1725,7 +1725,7 @@ reflink_decoder (MAYBE_UNUSED struct tar_stat_info *st,
 {
   uintmax_t u = 0;
   if (decode_num (&u, arg, TYPE_MAXIMUM (off_t), keyword))
-    st->data_start = u;
+    st->data_start = u + offset_option;
 }
 
 struct xhdr_tab const xhdr_tab[] = {

@@ -1113,7 +1113,9 @@ seek_archive (off_t size)
   if (offset < 0)
     return offset;
 
-  if ((offset - offset_option) % record_size)
+  offset -= offset_option;
+
+  if (offset % record_size)
     paxfatal (0, _("rmtlseek not stopped at a record boundary"));
 
   /* Convert to number of records */

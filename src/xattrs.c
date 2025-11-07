@@ -521,8 +521,8 @@ static bool xattrs_masked_out (const char *kw, bool archiving);
    if no mask is given this includes all the user.*, security.*, system.*,
    etc. available domains */
 void
-xattrs_xattrs_get (int parentfd, char const *file_name,
-                   struct tar_stat_info *st, int fd)
+xattrs_xattrs_get (MAYBE_UNUSED int parentfd, MAYBE_UNUSED char const *file_name,
+                   MAYBE_UNUSED struct tar_stat_info *st, MAYBE_UNUSED int fd)
 {
   if (xattrs_option)
     {

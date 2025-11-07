@@ -722,8 +722,9 @@ xattrs_masked_out (const char *kw, bool archiving)
 }
 
 void
-xattrs_xattrs_set (struct tar_stat_info const *st,
-                   char const *file_name, char typeflag, bool later_run)
+xattrs_xattrs_set (MAYBE_UNUSED struct tar_stat_info const *st,
+                   MAYBE_UNUSED char const *file_name,
+		   MAYBE_UNUSED char typeflag, MAYBE_UNUSED bool later_run)
 {
   if (xattrs_option)
     {

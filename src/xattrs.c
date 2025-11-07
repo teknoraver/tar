@@ -76,7 +76,7 @@ xattr_map_add (struct xattr_map *map,
   map->xm_size++;
 }
 
-static void
+static inline void
 xheader_xattr_add (struct tar_stat_info *st,
 		   const char *key, const char *val, idx_t len)
 {

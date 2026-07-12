@@ -1369,7 +1369,31 @@ extract_file (char *file_name, char typeflag)
   if (current_stat_info.is_sparse)
     sparse_extract_file (fd, &current_stat_info, &size);
   else
-    for (size = current_stat_info.stat.st_size; size > 0; )
+    {
+      size = current_stat_info.stat.st_size;
+
+      /* For a local, uncompressed regular archive, let the kernel copy the
+         member directly into a regular output file.  On file systems that
+         support it this can share the underlying extents.  */
+      enum archive_copy_status copy_status
+        = archive_copy_file_range (fd, size);
+
+      if (copy_status == ARCHIVE_COPY_OK)
+        {
+          skim_file (size, false);
+          size = 0;
+        }
+      else if (copy_status == ARCHIVE_COPY_TRUNCATED)
+        {
+          paxerror (0, _("Unexpected EOF in archive"));
+        }
+      else if (copy_status == ARCHIVE_COPY_ERROR)
+        {
+          paxerror (errno, _("%s: copy_file_range failed"),
+                    quote (file_name));
+        }
+
+      for (; copy_status == ARCHIVE_COPY_UNAVAILABLE && size > 0; )
       {
 	mv_size_left (size);
 
@@ -1401,6 +1425,7 @@ extract_file (char *file_name, char typeflag)
 	    break;
 	  }
       }
+    }
 
   skim_file (size, false);
   current_stat_info.skipped = true;

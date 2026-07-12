@@ -464,6 +464,15 @@ char *drop_volume_label_suffix (const char *label)
 
 idx_t available_space_after (union block *pointer);
 off_t current_block_ordinal (void);
+
+enum archive_copy_status
+  {
+    ARCHIVE_COPY_UNAVAILABLE,
+    ARCHIVE_COPY_OK,
+    ARCHIVE_COPY_TRUNCATED,
+    ARCHIVE_COPY_ERROR
+  };
+enum archive_copy_status archive_copy_file_range (int fd, off_t size);
 void close_archive (void);
 void closeout_volume_number (void);
 double compute_duration_ns (void);

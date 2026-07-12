@@ -32,6 +32,7 @@ c32tolower
 c32toupper
 closeout
 configmake
+copy-file-range
 dirname
 dup2
 errno-h

@@ -13,6 +13,13 @@ in the uncompressed archive stream.  SIZE must be a power of two and a
 multiple of 512, and cannot exceed 1 GiB.  This can make extraction via
 reflinks or copy_file_range(2) more efficient.
 
+* Faster extraction from regular archive files
+
+When extracting a contiguous regular file from an uncompressed local archive,
+tar now uses copy_file_range(2) where possible.  This avoids copying file data
+through userspace and can share extents on file systems that support reflinks.
+Tar falls back to buffered I/O when the fast path is unavailable.
+
 * New options: --set-mtime-command and --set-mtime-format
 
 Both options are valid when archiving files.

@@ -593,6 +593,77 @@ current_block_ordinal (void)
   return record_start_block + (current_block - record_start);
 }
 
+/* Copy SIZE bytes starting at the current logical archive position directly
+   to FD.  This can share extents when the input and output file systems
+   support it.  Leave the logical archive position unchanged; the caller must
+   advance it after a successful copy.
+
+   Return ARCHIVE_COPY_UNAVAILABLE if a buffered copy should be used instead,
+   ARCHIVE_COPY_OK on success, ARCHIVE_COPY_TRUNCATED if the source ends after
+   a partial copy, and ARCHIVE_COPY_ERROR if an error occurred after copying
+   began or cannot usefully be retried with buffered I/O.  */
+enum archive_copy_status
+archive_copy_file_range (int fd, off_t size)
+{
+  static bool unsupported;
+  struct stat st;
+  off_t input_offset;
+  off_t remaining = size;
+  bool copied = false;
+
+  if (size <= 0
+      || unsupported
+      || !seekable_archive
+      || checkpoint_option
+      || multi_volume_option
+      || use_compress_program_option
+      || _isrmt (archive)
+      || !S_ISREG (archive_stat.st_mode)
+      || fstat (fd, &st) != 0
+      || !S_ISREG (st.st_mode)
+      || ckd_mul (&input_offset, current_block_ordinal (), BLOCKSIZE)
+      || ckd_add (&input_offset, input_offset, start_offset))
+    return ARCHIVE_COPY_UNAVAILABLE;
+
+  while (remaining != 0)
+    {
+      size_t chunk = min ((uintmax_t) remaining,
+                          min (SSIZE_MAX, SIZE_MAX));
+      ssize_t n = copy_file_range (archive, &input_offset, fd, NULL,
+                                   chunk, 0);
+
+      if (0 < n)
+        {
+          copied = true;
+          remaining -= n;
+          continue;
+        }
+      if (n < 0 && errno == EINTR)
+        continue;
+
+      if (!copied
+          && (n == 0
+              || errno == ENOSYS
+              || errno == EXDEV
+              || errno == EINVAL
+              || errno == EBADF
+              || errno == EPERM
+              || errno == ENOTSUP
+              || (EOPNOTSUPP != ENOTSUP && errno == EOPNOTSUPP)))
+        {
+          if (n < 0 && errno == ENOSYS)
+            unsupported = true;
+          return ARCHIVE_COPY_UNAVAILABLE;
+        }
+
+      if (n == 0)
+        return ARCHIVE_COPY_TRUNCATED;
+      return ARCHIVE_COPY_ERROR;
+    }
+
+  return ARCHIVE_COPY_OK;
+}
+
 /* If the EOF flag is set, reset it, as well as current_block, etc.  */
 void
 reset_eof (void)

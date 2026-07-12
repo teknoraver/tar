@@ -1,0 +1,71 @@
+# Test copy_file_range extraction.  -*- autotest -*-
+
+# Copyright 2026 Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3, or (at your option)
+# any later version.
+
+AT_SETUP([copy_file_range extraction])
+AT_KEYWORDS([extract extrac35 copy_file_range reflink align])
+
+AT_CHECK([
+mkdir input local selected checkpoint pipe
+genfile --file=input/large --length=70001
+genfile --file=input/block --length=131072
+genfile --file=input/small --length=513
+
+# A one-block record makes each successful direct copy cross many input
+# records.  Alignment also exercises the PAX padding used to make extent
+# sharing effective.
+tar -C input --align=4096 -b1 -cf archive.tar large block small || exit 1
+tar -C local -b1 -xf archive.tar || exit 1
+cmp input/large local/large || exit 1
+cmp input/block local/block || exit 1
+cmp input/small local/small || exit 1
+
+# The source offset must remain correct after skipping an earlier member, and
+# an existing destination must be truncated before the direct copy.
+tar -C selected -b1 -xf archive.tar block || exit 1
+cmp input/block selected/block || exit 1
+genfile --file=local/large --length=140000 || exit 1
+tar -C local -b1 --overwrite -xf archive.tar large || exit 1
+cmp input/large local/large || exit 1
+
+# Checkpoints are tied to input records, so they disable direct copying.
+tar -C checkpoint -b1 --checkpoint=1 -xf archive.tar 2>checkpoints || exit 1
+test $(wc -l < checkpoints) -gt 100 || exit 1
+cmp input/large checkpoint/large || exit 1
+cmp input/block checkpoint/block || exit 1
+cmp input/small checkpoint/small || exit 1
+
+# Standard output is eligible when redirected to a regular file.  A pipe is
+# rejected by the destination check and uses buffered I/O.
+cat input/large input/small > expected-stdout || exit 1
+tar -b1 -xOf archive.tar large small > stdout-file || exit 1
+cmp expected-stdout stdout-file || exit 1
+tar -b1 -xOf archive.tar block | cmp - input/block || exit 1
+
+# A pipe is not a copy_file_range source and must use buffered I/O.
+cat archive.tar | tar -C pipe -b1 -B -xf - || exit 1
+cmp input/large pipe/large || exit 1
+cmp input/block pipe/block || exit 1
+cmp input/small pipe/small
+], [0], [], [])
+
+AT_CLEANUP
+
+AT_SETUP([copy_file_range compressed fallback])
+AT_KEYWORDS([extract extrac35 copy_file_range gzip])
+
+AT_CHECK([
+AT_GZIP_PREREQ
+mkdir input output
+genfile --file=input/file --length=70001
+tar -C input -czf archive.tar.gz file || exit 1
+tar -C output -xzf archive.tar.gz || exit 1
+cmp input/file output/file
+], [0], [], [])
+
+AT_CLEANUP

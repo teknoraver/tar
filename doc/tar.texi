@@ -1708,6 +1708,16 @@ You can extract a file to standard output by combining the above options
 with the @option{--to-stdout} (@option{-O}) option (@pxref{Writing to Standard
 Output}).
 
+@cindex copy_file_range
+When extracting a contiguous regular file from an uncompressed archive that
+is itself a local regular file, @GNUTAR{} attempts to copy the file data
+directly with @code{copy_file_range}.  On file systems that support it, this
+can share the underlying extents instead of copying their contents.  If the
+operation is unavailable, @GNUTAR{} transparently falls back to buffered I/O.
+This also applies to @option{--to-stdout} when standard output is redirected
+to a regular file.  Compressed archives, pipes, sparse members, checkpoint
+actions, and extraction to a command use buffered I/O.
+
 If you give the @option{--verbose} option, then @option{--extract}
 will print the names of the archive members as it extracts them.
 

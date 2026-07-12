@@ -1,0 +1,111 @@
+# Test --align.  -*- Autotest -*-
+
+# Copyright 2026 Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3, or (at your option)
+# any later version.
+
+AT_SETUP([align regular file data])
+AT_KEYWORDS([align pax posix])
+
+AT_CHECK([
+genfile --file=big1 --length=5000
+genfile --file=big2 --length=4096
+genfile --file=small --length=100
+
+# The first two payloads start at offsets 4096 and 12288 respectively.
+tar --align=4K -cf archive.tar big1 big2 small || exit 1
+dd if=archive.tar bs=4096 skip=1 count=1 2>/dev/null > got1
+dd if=big1 bs=4096 count=1 2>/dev/null > exp1
+dd if=archive.tar bs=4096 skip=3 count=1 2>/dev/null > got2
+cmp got1 exp1 || exit 1
+cmp got2 big2 || exit 1
+
+# Padding remains transparent, including to GNU tar's warning machinery.
+mkdir out
+tar -xf archive.tar -C out || exit 1
+cmp big1 out/big1 || exit 1
+cmp big2 out/big2 || exit 1
+cmp small out/small || exit 1
+],
+[0], [], [])
+
+AT_CHECK([tar --align=0 -cf invalid.tar small], [2], [], [ignore])
+AT_CHECK([tar --align=1536 -cf invalid.tar small], [2], [], [ignore])
+AT_CHECK([tar --align=2G -cf invalid.tar small], [2], [], [ignore])
+AT_CHECK([tar --align=1G -cf maximum.tar small], [0], [], [])
+AT_CHECK([tar --align=512 -cf minimum.tar small], [0], [], [])
+
+AT_CLEANUP
+
+AT_SETUP([align compressed archive data])
+AT_KEYWORDS([align pax posix gzip])
+
+AT_CHECK([
+AT_GZIP_PREREQ
+genfile --file=big1 --length=5000
+genfile --file=big2 --length=4096
+
+# Alignment describes the stream before compression.
+tar --align=4096 -czf archive.tar.gz big1 big2 || exit 1
+gzip -dc archive.tar.gz > plain.tar || exit 1
+dd if=plain.tar bs=4096 skip=1 count=1 2>/dev/null > got1
+dd if=big1 bs=4096 count=1 2>/dev/null > exp1
+dd if=plain.tar bs=4096 skip=3 count=1 2>/dev/null > got2
+cmp got1 exp1 || exit 1
+cmp got2 big2
+],
+[0], [], [])
+
+AT_CLEANUP
+
+AT_SETUP([align without a natural extended header])
+AT_KEYWORDS([align pax posix])
+
+AT_CHECK([
+for i in 1 2 3 4 5 6 7; do
+  genfile --file=empty$i --length=0 || exit 1
+done
+genfile --file=big --length=4096
+
+# Seven ordinary headers put BIG's member header at byte 3584.  Its data is
+# naturally aligned, so --align must not introduce an unnecessary xheader.
+tar --align=4096 \
+  --pax-option=delete=mtime,delete=atime,delete=ctime \
+  -cf archive.tar empty1 empty2 empty3 empty4 empty5 empty6 empty7 big || exit 1
+dd if=archive.tar bs=4096 skip=1 count=1 2>/dev/null > got
+cmp got big || exit 1
+
+# A long name forces a natural path record before the alignment record.
+long=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+genfile --file=$long --length=4096 || exit 1
+tar --align=4096 -cf long.tar $long || exit 1
+dd if=long.tar bs=4096 skip=1 count=1 2>/dev/null > got-long
+cmp got-long $long
+],
+[0], [], [])
+
+AT_CLEANUP
+
+AT_SETUP([align command and format restrictions])
+AT_KEYWORDS([align pax posix options append update multivolume])
+
+AT_CHECK([
+genfile --file=small --length=100
+genfile --file=big --length=4096
+tar -Hgnu -cf gnu.tar small || exit 1
+tar -Hposix -cf posix.tar small || exit 1
+], [0], [], [])
+
+AT_CHECK([tar --align=4096 -tf posix.tar], [2], [], [ignore])
+AT_CHECK([tar --align=4096 -Af posix.tar posix.tar], [2], [], [ignore])
+AT_CHECK([tar --align=4096 -M -L10 -cf multi.tar big], [2], [], [ignore])
+AT_CHECK([tar --align=4096 -rf gnu.tar big], [2], [], [ignore])
+AT_CHECK([tar --align=4096 -rf posix.tar big], [0], [], [])
+AT_CHECK([tar -tf posix.tar], [0], [small
+big
+])
+
+AT_CLEANUP

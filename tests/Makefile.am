@@ -64,6 +64,7 @@ TESTSUITE_AT = \
  acls02.at\
  acls03.at\
  add-file.at\
+ align.at\
  append.at\
  append01.at\
  append02.at\

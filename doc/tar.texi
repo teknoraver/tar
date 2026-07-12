@@ -2470,6 +2470,14 @@ Enable POSIX ACLs support.  @xref{Extended File Attributes, acls}.
 
 (See @option{--newer}, @pxref{after})
 
+@opsummary{align}
+@item --align=@var{size}[@var{suf}]
+
+When creating a POSIX archive, align the data of sufficiently large regular
+files to @var{size}-byte boundaries in the uncompressed archive stream.
+The argument can use a @ref{size-suffixes, size suffix}.  It must be a power
+of two, a multiple of 512, and no larger than 1 GiB.  @xref{posix}.
+
 @opsummary{anchored}
 @item --anchored
 A pattern must match an initial subsequence of the name's components.
@@ -10654,6 +10662,21 @@ A @acronym{POSIX} conformant archive will be created if @command{tar}
 was given @option{--format=posix} (@option{--format=pax}) option.  No
 special option is required to read and extract from a @acronym{POSIX}
 archive.
+
+@opindex align
+The @option{--align=@var{size}} option pads extended headers as needed so that
+the data of every regular file whose size is at least @var{size} begins at a
+multiple of @var{size} bytes in the uncompressed archive stream.  It can be
+used only with @option{--create}, @option{--append}, or @option{--update}, and
+cannot be combined with multi-volume archives.  It implies
+@option{--format=posix}.  The size must be a power of two, a multiple of 512,
+and no larger than 1 GiB; it can have a @ref{size-suffixes, size suffix}.
+
+Alignment is applied before compression, so decompressing a compressed
+archive preserves the aligned layout.  This can let extraction tools share
+file contents from an uncompressed archive using reflinks or
+@code{copy_file_range}, at the cost of additional padding.  The padding is
+stored in an ignorable @code{GNU.pad} extended-header record.
 
 @menu
 * PAX keywords:: Controlling Extended Header Keywords.

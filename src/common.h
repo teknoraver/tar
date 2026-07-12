@@ -102,6 +102,10 @@ extern enum archive_format archive_format;
 extern idx_t blocking_factor;
 extern idx_t record_size;
 
+/* If nonzero, align sufficiently large regular file data to this many
+   bytes in POSIX archives.  */
+extern idx_t alignment_option;
+
 extern bool absolute_names_option;
 
 /* Display file times in UTC */
@@ -936,6 +940,7 @@ void xheader_write (char type, char *name, time_t t, struct xheader *xhdr);
 void xheader_write_global (struct xheader *xhdr);
 void xheader_forbid_global (void);
 void xheader_finish (struct xheader *hdr);
+void xheader_finish_aligned (struct xheader *hdr, uintmax_t off, idx_t align);
 void xheader_destroy (struct xheader *hdr);
 char *xheader_xhdr_name (struct tar_stat_info *st);
 char *xheader_ghdr_name (void);

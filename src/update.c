@@ -206,6 +206,13 @@ update_archive (void)
     }
 
   reset_eof ();
+
+  /* The format requested on the command line can be replaced above by the
+     format detected in an existing archive.  Do not create a mixed-format
+     archive by adding POSIX alignment headers to a non-POSIX archive.  */
+  if (alignment_option && archive_format != POSIX_FORMAT)
+    paxusage (_("--align can be used only on POSIX archives"));
+
   time_to_start_writing = true;
   output_start = charptr (current_block);
 

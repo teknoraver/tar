@@ -666,10 +666,26 @@ write_extended (bool global, struct tar_stat_info *st, union block *old_header)
   int type;
   time_t t;
 
-  if (st->xhdr.buffer || st->xhdr.stk == NULL)
+  bool align = (!global && alignment_option
+		&& S_ISREG (st->stat.st_mode)
+		&& st->stat.st_size >= alignment_option);
+
+  if (st->xhdr.buffer || (st->xhdr.stk == NULL && !align))
     return old_header;
 
-  xheader_finish (&st->xhdr);
+  if (align)
+    {
+      xheader_finish_aligned (&st->xhdr,
+			      (uintmax_t) current_block_ordinal () * BLOCKSIZE,
+			      alignment_option);
+      if (st->xhdr.size == 0)
+	{
+	  xheader_destroy (&st->xhdr);
+	  return old_header;
+	}
+    }
+  else
+    xheader_finish (&st->xhdr);
   memcpy (hp.buffer, old_header, sizeof (hp));
   if (global)
     {

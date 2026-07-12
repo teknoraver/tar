@@ -36,6 +36,7 @@ enum subcommand subcommand_option;
 enum archive_format archive_format;
 idx_t blocking_factor;
 idx_t record_size;
+idx_t alignment_option;
 bool absolute_names_option;
 bool utc_option;
 bool full_time_option;
@@ -353,7 +354,8 @@ tar_set_quoting_style (char *arg)
 
 enum
 {
-  ACLS_OPTION = CHAR_MAX + 1,
+  ALIGN_OPTION = CHAR_MAX + 1,
+  ACLS_OPTION,
   ATIME_PRESERVE_OPTION,
   BACKUP_OPTION,
   CHECK_DEVICE_OPTION,
@@ -773,6 +775,10 @@ static struct argp_option options[] = {
 
   {"format", 'H', N_("FORMAT"), 0,
    N_("create archive of the given format"), GRID_FORMAT },
+
+  {"align", ALIGN_OPTION, N_("SIZE"), 0,
+   N_("align data of regular files at least SIZE bytes long"),
+   GRID_FORMAT_OPT },
 
   {NULL, 0, NULL, 0, N_("FORMAT is one of the following:"), GRDOC_FORMAT },
   {"  v7", 0, NULL, OPTION_DOC|OPTION_NO_TRANS, N_("old V7 tar format"),
@@ -1429,6 +1435,21 @@ parse_opt (int key, char *arg, struct argp_state *state)
 
   switch (key)
     {
+    case ALIGN_OPTION:
+      {
+	uintmax_t u;
+
+	if (! (xstrtoumax (arg, NULL, 10, &u, TAR_SIZE_SUFFIXES) == LONGINT_OK
+	       && 0 < u && u <= (UINTMAX_C (1) << 30)
+	       && u % BLOCKSIZE == 0
+	       && (u & (u - 1)) == 0))
+	  paxusage (_("--align value must be a power of two, a multiple of %d,"
+		      " and at most 1G"), BLOCKSIZE);
+	alignment_option = u;
+	set_archive_format ("posix");
+      }
+      break;
+
     case ARGP_KEY_INIT:
       if (state->root_argp->children)
 	for (idx_t i = 0; state->root_argp->children[i].argp; i++)
@@ -2618,6 +2639,19 @@ decode_options (int argc, char **argv)
       && archive_format != POSIX_FORMAT
       && !is_subcommand_class (SUBCL_READ))
     paxusage (_("--pax-option can be used only on POSIX archives"));
+
+  if (alignment_option
+      && subcommand_option != CREATE_SUBCOMMAND
+      && subcommand_option != APPEND_SUBCOMMAND
+      && subcommand_option != UPDATE_SUBCOMMAND)
+    paxusage (_("--align can be used only with --create, --append, or"
+		" --update"));
+
+  if (alignment_option && archive_format != POSIX_FORMAT)
+    paxusage (_("--align can be used only on POSIX archives"));
+
+  if (alignment_option && multi_volume_option)
+    paxusage (_("--align cannot be used with multi-volume archives"));
 
   /* star creates non-POSIX typed archives with xattr support, so allow the
      extra headers when reading */

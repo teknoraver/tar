@@ -881,6 +881,59 @@ xheader_print (struct xheader *xhdr, char const *keyword, char const *value)
   xheader_print_n (xhdr, keyword, value, strlen (value));
 }
 
+/* Append a GNU.pad record that makes the extended header body exactly SIZE
+   bytes long.  The record is ignored by readers; its only purpose is to move
+   the following member data to a requested boundary.  */
+static void
+xheader_print_padding (struct xheader *xhdr, idx_t size)
+{
+  static char const keyword[] = "GNU.pad";
+  char nbuf[INTMAX_STRSIZE_BOUND];
+  char const *np = imaxtostr (size - xhdr->size, nbuf);
+  idx_t n = nbuf + sizeof nbuf - 1 - np;
+  idx_t overhead = n + 1 + sizeof keyword - 1 + 1 + 1;
+  idx_t value_size = size - xhdr->size - overhead;
+
+  x_obstack_grow (xhdr, np, n);
+  x_obstack_1grow (xhdr, ' ');
+  x_obstack_grow (xhdr, keyword, sizeof keyword - 1);
+  x_obstack_1grow (xhdr, '=');
+  x_obstack_blank (xhdr, value_size);
+  memset (obstack_next_free (xhdr->stk) - value_size, 'X', value_size);
+  x_obstack_1grow (xhdr, '\n');
+}
+
+/* Pad XHDR so that data following its extended-header header, body and the
+   member header starts at an ALIGN boundary.  OFF is the byte offset of the
+   first of those headers.  */
+static void
+xheader_align (struct xheader *xhdr, uintmax_t off, idx_t align)
+{
+  uintmax_t mask = align - 1;
+  uintmax_t base = off + 2 * BLOCKSIZE;
+  uintmax_t natural;
+
+  if (xhdr->size == 0)
+    natural = off + BLOCKSIZE;
+  else
+    {
+      idx_t rounded;
+      if (ckd_add (&rounded, xhdr->size, BLOCKSIZE - 1))
+	xalloc_die ();
+      natural = base + (rounded & - (uintmax_t) BLOCKSIZE);
+    }
+
+  if ((natural & mask) != 0)
+    {
+      idx_t min_size, size;
+      if (ckd_add (&min_size, xhdr->size, 64))
+	xalloc_die ();
+      if (ckd_add (&size, min_size, (- base - min_size) & mask))
+	xalloc_die ();
+      xheader_print_padding (xhdr, size);
+    }
+}
+
 void
 xheader_finish (struct xheader *xhdr)
 {
@@ -889,6 +942,19 @@ xheader_finish (struct xheader *xhdr)
   for (kp = keyword_override_list; kp; kp = kp->next)
     code_string (kp->value, kp->pattern, xhdr);
 
+  xhdr->buffer = obstack_finish (xhdr->stk);
+}
+
+void
+xheader_finish_aligned (struct xheader *xhdr, uintmax_t off, idx_t align)
+{
+  struct keyword_list *kp;
+
+  xheader_init (xhdr);
+  for (kp = keyword_override_list; kp; kp = kp->next)
+    code_string (kp->value, kp->pattern, xhdr);
+
+  xheader_align (xhdr, off, align);
   xhdr->buffer = obstack_finish (xhdr->stk);
 }
 
@@ -1705,6 +1771,9 @@ struct xhdr_tab const xhdr_tab[] = {
 
   { "GNU.dumpdir",           dumpdir_coder, dumpdir_decoder,
     XHDR_PROTECTED, false },
+
+  /* Ignorable padding used by --align.  */
+  { "GNU.pad", dummy_coder, dummy_decoder, XHDR_PROTECTED, false },
 
   /* Keeps the tape/volume label. May be present only in the global headers.
      Equivalent to GNUTYPE_VOLHDR.  */

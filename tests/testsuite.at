@@ -421,6 +421,7 @@ m4_include([link03.at])
 m4_include([link04.at])
 
 AT_BANNER([Specific archive formats])
+m4_include([align.at])
 m4_include([longv7.at])
 m4_include([long01.at])
 m4_include([lustar01.at])
